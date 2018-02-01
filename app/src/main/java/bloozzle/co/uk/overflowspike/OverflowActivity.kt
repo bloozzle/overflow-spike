@@ -1,23 +1,24 @@
 package bloozzle.co.uk.overflowspike
 
 import android.arch.lifecycle.*
-import android.opengl.Visibility
 import android.os.Bundle
-import android.support.design.widget.Snackbar
 import android.support.v7.app.AppCompatActivity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 
 import kotlinx.android.synthetic.main.activity_overflow.*
+import kotlinx.coroutines.experimental.delay
+import kotlinx.coroutines.experimental.launch
 
 
 class OverflowActivity : AppCompatActivity(), OverflowView {
+
     override fun showLoading() {
         loading.visibility = View.VISIBLE
     }
 
-    override fun showList(items: List<OverflowUiItem>) {
+    override fun showList(items: List<OverflowUIItem>) {
         loading.visibility = View.GONE
         list.visibility = View.VISIBLE
     }
@@ -36,8 +37,10 @@ class OverflowActivity : AppCompatActivity(), OverflowView {
         val overflowPresenter = OverflowPresenter(this )
         val overflowViewModelFactory = OverflowViewModelFactory(OverflowParameters( "watching", OverflowType.USER))
         val overflowViewModel = ViewModelProviders.of(this, overflowViewModelFactory).get(OverflowViewModel::class.java);
+        val overflowController = OverflowController(overflowViewModel)
 
-        overflowViewModel.getOverflowItems().observe(this, overflowPresenter)
+
+        overflowController.loadOverflowItems(this, overflowPresenter)
 
     }
 
@@ -58,6 +61,13 @@ class OverflowActivity : AppCompatActivity(), OverflowView {
     }
 }
 
+class OverflowController(val viewModel: OverflowViewModel) {
+    fun loadOverflowItems(lifecycleOwner: LifecycleOwner, observer: Observer<OverflowDataState>) {
+        viewModel.getOverflowItems().observe(lifecycleOwner, observer)
+    }
+
+}
+
 class OverflowViewModelFactory(val overflowParameters: OverflowParameters) : ViewModelProvider.Factory {
     override fun <T : ViewModel?> create(modelClass: Class<T>): T {
 
@@ -76,14 +86,17 @@ class OverflowViewModelFactory(val overflowParameters: OverflowParameters) : Vie
 
 class WatchingRepository {
     fun getOverflowItems(): WatchingResponse {
-        Thread.sleep(10000)
-        return WatchingSuccess(listOf(
-                WatchingItem("item1", "title 1", "subtitle 1", 10 ),
-                WatchingItem("item2", "title 2", "subtitle 2", 12 ),
-                WatchingItem("item3", "title 3", "subtitle 3", 5 )))
-    }
 
-}
+        return WatchingSuccess(listOf(
+                         WatchingItem("item1", "title 1", "subtitle 1", 10),
+                         WatchingItem("item2", "title 2", "subtitle 2", 12),
+                         WatchingItem("item3", "title 3", "subtitle 3", 5)))
+
+             }
+        }
+
+
+
 
 sealed class WatchingResponse
     data class WatchingSuccess(val items: List<WatchingItem>) : WatchingResponse()
@@ -100,7 +113,7 @@ class OverflowPresenter(val overflowView: OverflowView) : Observer<OverflowDataS
     override fun onChanged(overflowDataState: OverflowDataState?) {
         when(overflowDataState) {
             is Loading -> overflowView.showLoading()
-            is Success -> overflowView.showList(overflowDataState.items)
+            is Success -> overflowView.showList(overflowDataState.items.transformToUIItems())
             is Error -> overflowView.showError(overflowDataState.message)
 
         }
@@ -109,9 +122,22 @@ class OverflowPresenter(val overflowView: OverflowView) : Observer<OverflowDataS
 
 }
 
+private fun List<OverflowItem>.transformToUIItems(): List<OverflowUIItem> {
+    var overflowUIItems = ArrayList<OverflowUIItem>()
+    for (item in this) {
+        overflowUIItems.add(item.transformToOverflowUiItem())
+    }
+    return overflowUIItems
+
+}
+
+private fun OverflowItem.transformToOverflowUiItem(): OverflowUIItem {
+    return OverflowUIItem(title, subtitle)
+}
+
 interface OverflowView {
     fun showLoading()
-    fun showList(items: List<OverflowUiItem>)
+    fun showList(items: List<OverflowUIItem>)
     fun showError(message: String)
 }
 
@@ -122,10 +148,13 @@ class OverflowViewModel(val watchingRepository: WatchingRepository) : ViewModel(
 
     fun getOverflowItems() : LiveData<OverflowDataState> {
         overflowDataState.value = Loading()
-        val watchingResponse = watchingRepository.getOverflowItems()
-        when(watchingResponse) {
-            is WatchingSuccess -> overflowDataState.value = Success(watchingResponse.items.transformToUIModel())
-            is WatchingError -> overflowDataState.value = Error(watchingResponse.message)
+        launch {
+            delay(10000L)
+            val watchingResponse = watchingRepository.getOverflowItems()
+            when(watchingResponse) {
+                is WatchingSuccess -> overflowDataState.postValue(Success(watchingResponse.items.transformToOverflowModel()))
+                is WatchingError -> overflowDataState.postValue(Error(watchingResponse.message))
+            }
         }
         return overflowDataState
 
@@ -133,23 +162,24 @@ class OverflowViewModel(val watchingRepository: WatchingRepository) : ViewModel(
 
 }
 
-private fun List<WatchingItem>.transformToUIModel(): List<OverflowUiItem> {
-    var uiItems = ArrayList<OverflowUiItem>()
+private fun List<WatchingItem>.transformToOverflowModel(): List<OverflowItem> {
+    var overflowItems = ArrayList<OverflowItem>()
     for (item in this) {
-       uiItems.add(item.transformToUiItem())
+       overflowItems.add(item.transformToOverflowItem())
     }
-    return uiItems
+    return overflowItems
 }
 
-private fun WatchingItem.transformToUiItem(): OverflowUiItem {
-    return OverflowUiItem(title, subtitle)
+private fun WatchingItem.transformToOverflowItem(): OverflowItem {
+    return OverflowItem(id, title, subtitle)
 }
 
+data class OverflowItem(val id : String, val title: String, val subtitle: String)
 
 sealed class OverflowDataState
 class Loading : OverflowDataState()
-data class Success(val items : List<OverflowUiItem>) : OverflowDataState()
+data class Success(val items : List<OverflowItem>) : OverflowDataState()
 data class Error(val message : String) : OverflowDataState()
 
 data class OverflowParameters(val id : String, val overflowType : OverflowType)
-data class OverflowUiItem(val heading1 : String, val heading2 : String)
+data class OverflowUIItem(val heading1 : String, val heading2 : String)

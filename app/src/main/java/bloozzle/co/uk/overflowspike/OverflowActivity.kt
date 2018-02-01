@@ -1,23 +1,27 @@
 package bloozzle.co.uk.overflowspike
 
 import android.arch.lifecycle.*
+import android.content.Intent
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import android.support.v7.widget.GridLayoutManager
 import android.support.v7.widget.RecyclerView
 import android.view.*
-
 import kotlinx.android.synthetic.main.activity_overflow.*
 import kotlinx.android.synthetic.main.layout_list_view.*
+import kotlinx.android.synthetic.main.layout_overflow_list_item.view.*
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
-import android.widget.TextView
-import kotlinx.android.synthetic.main.layout_overflow_list_item.view.*
-import org.w3c.dom.Text
 
 
 class OverflowActivity : AppCompatActivity(), OverflowView {
-    private lateinit var overflowController: OverflowController
+
+    private lateinit var viewListener: OverflowViewListener
+
+    override fun addViewListener(overflowViewListener: OverflowViewListener) {
+        viewListener = overflowViewListener
+    }
+
 
     override fun showLoading() {
         view_switcher.showPrevious()
@@ -30,7 +34,7 @@ class OverflowActivity : AppCompatActivity(), OverflowView {
         view_switcher.addView(view)
         recycler_view.layoutManager = GridLayoutManager(this, 2)
         recycler_view.adapter = OverflowListAdapter(items) {
-            overflowController.itemSelected(items.indexOf(it))
+            viewListener?.itemSelected(items.indexOf(it))
         }
         view_switcher.showNext()
     }
@@ -42,18 +46,33 @@ class OverflowActivity : AppCompatActivity(), OverflowView {
     }
 
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_overflow)
         setSupportActionBar(toolbar)
 
+
         val overflowPresenter = OverflowPresenter(this )
         val overflowViewModelFactory = OverflowViewModelFactory(OverflowParameters( "watching", OverflowType.USER))
         val overflowViewModel = ViewModelProviders.of(this, overflowViewModelFactory).get(OverflowViewModel::class.java);
-        overflowController = OverflowController(overflowViewModel)
+
+        val overflowController = OverflowController(overflowViewModel, object: Router{
+            override fun navigateToDetailsPage(id: String, title: String) {
+                val intent = Intent(this@OverflowActivity, DetailsPageActivity::class.java)
+                intent.putExtra("id", id)
+                intent.putExtra("title", title)
+                startActivity(intent)
+            }
+
+        })
 
 
-        overflowController.loadOverflowItems(this, overflowPresenter)
+        overflowViewModel.overflowDataState.observe(this, overflowPresenter)
+        overflowViewModel.overflowDataState.observe(this, overflowController)
+        addViewListener(overflowController)
+
+        overflowController.loadOverflowItems()
 
     }
 
@@ -72,6 +91,11 @@ class OverflowActivity : AppCompatActivity(), OverflowView {
             else -> super.onOptionsItemSelected(item)
         }
     }
+}
+
+interface Router {
+    fun navigateToDetailsPage(id: String, title: String)
+
 }
 
 class OverflowListAdapter(val items : List<OverflowUIItem>, val listener : (OverflowUIItem) -> Unit) : RecyclerView.Adapter<OverflowListAdapter.ViewHolder>() {
@@ -100,14 +124,26 @@ private fun ViewGroup.inflate(layoutResource: Int): View {
     return LayoutInflater.from(context).inflate(layoutResource, this, false)
 }
 
-class OverflowController(val viewModel: OverflowViewModel) {
+class OverflowController(val viewModel: OverflowViewModel, val router : Router ) : Observer<OverflowDataState>, OverflowViewListener {
 
-    fun loadOverflowItems(lifecycleOwner: LifecycleOwner, observer: Observer<OverflowDataState>) {
-        viewModel.getOverflowItems().observe(lifecycleOwner, observer)
+    private lateinit var overflowItems: List<OverflowItem>
+
+    override fun onChanged(overflowDataState: OverflowDataState?) {
+        when(overflowDataState) {
+            is Success -> overflowItems = overflowDataState.items
+
+
+        }
     }
 
-    fun itemSelected(position: Int) {
+    fun loadOverflowItems() {
+        viewModel.getOverflowItems()
 
+    }
+
+    override fun itemSelected(position: Int) {
+        val overflowItem = overflowItems.get(position)
+        router.navigateToDetailsPage(overflowItem.id, overflowItem.title )
     }
 
 }
@@ -125,10 +161,9 @@ class OverflowViewModelFactory(val overflowParameters: OverflowParameters) : Vie
 
     }
 
+
+
 }
-
-
-
 class WatchingRepository {
     fun getOverflowItems(): WatchingResponse {
 
@@ -138,23 +173,25 @@ class WatchingRepository {
                          WatchingItem("item3", "title 3", "subtitle 3", 5)))
 
              }
+
+
+
+
         }
-
-
-
-
 sealed class WatchingResponse
-    data class WatchingSuccess(val items: List<WatchingItem>) : WatchingResponse()
+data class WatchingSuccess(val items: List<WatchingItem>) : WatchingResponse()
+
     data class WatchingError(val message: String) : WatchingResponse()
 
 data class WatchingItem(val id: String, val title: String, val subtitle : String, val progress: Int)
-
 enum class OverflowType {
+
     USER
 
 }
 
 class OverflowPresenter(val overflowView: OverflowView) : Observer<OverflowDataState> {
+
 
     override fun onChanged(overflowDataState: OverflowDataState?) {
         when(overflowDataState) {
@@ -164,7 +201,6 @@ class OverflowPresenter(val overflowView: OverflowView) : Observer<OverflowDataS
 
         }
     }
-
 
 }
 
@@ -180,17 +216,27 @@ private fun List<OverflowItem>.transformToUIItems(): List<OverflowUIItem> {
 private fun OverflowItem.transformToOverflowUiItem(): OverflowUIItem {
     return OverflowUIItem(title, subtitle)
 }
-
 interface OverflowView {
+    fun addViewListener( overflowViewListener : OverflowViewListener)
     fun showLoading()
     fun showList(items: List<OverflowUIItem>)
     fun showError(message: String)
+
+
+
 }
 
+interface OverflowViewListener {
+    fun itemSelected(position: Int)
+
+}
 
 class OverflowViewModel(val watchingRepository: WatchingRepository) : ViewModel() {
 
-    private val overflowDataState =  MutableLiveData<OverflowDataState>()
+
+
+    val overflowDataState =  MutableLiveData<OverflowDataState>()
+
 
     fun getOverflowItems() : LiveData<OverflowDataState> {
         overflowDataState.value = Loading()
@@ -221,11 +267,11 @@ private fun WatchingItem.transformToOverflowItem(): OverflowItem {
 }
 
 data class OverflowItem(val id : String, val title: String, val subtitle: String)
-
 sealed class OverflowDataState
 class Loading : OverflowDataState()
 data class Success(val items : List<OverflowItem>) : OverflowDataState()
-data class Error(val message : String) : OverflowDataState()
 
+data class Error(val message : String) : OverflowDataState()
 data class OverflowParameters(val id : String, val overflowType : OverflowType)
+
 data class OverflowUIItem(val heading1 : String, val heading2 : String)

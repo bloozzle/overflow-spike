@@ -18,15 +18,13 @@ class OverflowActivity : AppCompatActivity() {
 
 
 
-
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_overflow)
         setSupportActionBar(toolbar)
 
         val overflowView = object: OverflowView {
-            private lateinit var viewListener: OverflowViewListener
+            private var viewListener: OverflowViewListener? = null
 
             override fun addViewListener(overflowViewListener: OverflowViewListener) {
                 viewListener = overflowViewListener
@@ -59,11 +57,11 @@ class OverflowActivity : AppCompatActivity() {
         val overflowViewModelFactory = OverflowViewModelFactory(OverflowParameters( "watching", OverflowType.USER))
         val overflowViewModel = ViewModelProviders.of(this, overflowViewModelFactory).get(OverflowViewModel::class.java);
 
-        val router = object : Router {
-            override fun navigateToDetailsPage(id: String, title: String) {
+        val router = object : DetailsPageRouter {
+
+            override fun navigate(id: String) {
                 val intent = Intent(this@OverflowActivity, DetailsPageActivity::class.java)
                 intent.putExtra("id", id)
-                intent.putExtra("title", title)
                 startActivity(intent)
             }
 
@@ -73,6 +71,7 @@ class OverflowActivity : AppCompatActivity() {
 
         overflowViewModel.overflowDataState.observe(this, overflowPresenter)
         overflowViewModel.overflowDataState.observe(this, overflowController)
+
         overflowView.addViewListener(overflowController)
 
         overflowController.loadOverflowItems()
@@ -96,8 +95,8 @@ class OverflowActivity : AppCompatActivity() {
     }
 }
 
-interface Router {
-    fun navigateToDetailsPage(id: String, title: String)
+interface DetailsPageRouter {
+    fun navigate(id: String)
 
 }
 
@@ -127,7 +126,7 @@ private fun ViewGroup.inflate(layoutResource: Int): View {
     return LayoutInflater.from(context).inflate(layoutResource, this, false)
 }
 
-class OverflowController(val viewModel: OverflowViewModel, val router : Router ) : Observer<OverflowDataState>, OverflowViewListener {
+class OverflowController(val viewModel: OverflowViewModel, val router : DetailsPageRouter ) : Observer<OverflowDataState>, OverflowViewListener {
 
     private lateinit var overflowItems: List<OverflowItem>
 
@@ -146,7 +145,7 @@ class OverflowController(val viewModel: OverflowViewModel, val router : Router )
 
     override fun itemSelected(position: Int) {
         val overflowItem = overflowItems.get(position)
-        router.navigateToDetailsPage(overflowItem.id, overflowItem.title )
+        router.navigate(overflowItem.id )
     }
 
 }

@@ -3,31 +3,44 @@ package bloozzle.co.uk.overflowspike
 import android.arch.lifecycle.*
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
-import android.view.Menu
-import android.view.MenuItem
-import android.view.View
+import android.support.v7.widget.GridLayoutManager
+import android.support.v7.widget.RecyclerView
+import android.view.*
 
 import kotlinx.android.synthetic.main.activity_overflow.*
+import kotlinx.android.synthetic.main.layout_list_view.*
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
+import android.widget.TextView
+import kotlinx.android.synthetic.main.layout_overflow_list_item.view.*
+import org.w3c.dom.Text
 
 
 class OverflowActivity : AppCompatActivity(), OverflowView {
+    private lateinit var overflowController: OverflowController
 
     override fun showLoading() {
-       val view = layoutInflater.inflate(R.layout.layout_loading_view, null)
-        main_frame.addView(view)
+        view_switcher.showPrevious()
     }
 
     override fun showList(items: List<OverflowUIItem>) {
-       val view = layoutInflater.inflate(R.layout.layout_list_view, null)
-        main_frame.addView(view)
+        val view = layoutInflater.inflate(R.layout.layout_list_view, null)
+
+
+        view_switcher.addView(view)
+        recycler_view.layoutManager = GridLayoutManager(this, 2)
+        recycler_view.adapter = OverflowListAdapter(items) {
+            overflowController.itemSelected(items.indexOf(it))
+        }
+        view_switcher.showNext()
     }
 
     override fun showError(message: String) {
        val view =  layoutInflater.inflate(R.layout.layout_error_view, null )
-        main_frame.addView(view)
+        view_switcher.addView(view)
+        view_switcher.showNext()
     }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,7 +50,7 @@ class OverflowActivity : AppCompatActivity(), OverflowView {
         val overflowPresenter = OverflowPresenter(this )
         val overflowViewModelFactory = OverflowViewModelFactory(OverflowParameters( "watching", OverflowType.USER))
         val overflowViewModel = ViewModelProviders.of(this, overflowViewModelFactory).get(OverflowViewModel::class.java);
-        val overflowController = OverflowController(overflowViewModel)
+        overflowController = OverflowController(overflowViewModel)
 
 
         overflowController.loadOverflowItems(this, overflowPresenter)
@@ -61,14 +74,46 @@ class OverflowActivity : AppCompatActivity(), OverflowView {
     }
 }
 
+class OverflowListAdapter(val items : List<OverflowUIItem>, val listener : (OverflowUIItem) -> Unit) : RecyclerView.Adapter<OverflowListAdapter.ViewHolder>() {
+
+    class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        fun bind(item: OverflowUIItem, listener: (OverflowUIItem) -> Unit) = with(itemView) {
+            heading1.text = item.heading1
+            heading2.text = item.heading2
+            setOnClickListener { listener(item) }
+        }
+    }
+
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder  = ViewHolder(parent.inflate(R.layout.layout_overflow_list_item))
+
+    override fun getItemCount(): Int = items.size
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) = holder.bind(items[position], listener)
+
+
+}
+
+
+
+private fun ViewGroup.inflate(layoutResource: Int): View {
+    return LayoutInflater.from(context).inflate(layoutResource, this, false)
+}
+
 class OverflowController(val viewModel: OverflowViewModel) {
+
     fun loadOverflowItems(lifecycleOwner: LifecycleOwner, observer: Observer<OverflowDataState>) {
         viewModel.getOverflowItems().observe(lifecycleOwner, observer)
+    }
+
+    fun itemSelected(position: Int) {
+
     }
 
 }
 
 class OverflowViewModelFactory(val overflowParameters: OverflowParameters) : ViewModelProvider.Factory {
+
     override fun <T : ViewModel?> create(modelClass: Class<T>): T {
 
       if(overflowParameters.id == "watching" && overflowParameters.overflowType == OverflowType.USER ){
@@ -110,6 +155,7 @@ enum class OverflowType {
 }
 
 class OverflowPresenter(val overflowView: OverflowView) : Observer<OverflowDataState> {
+
     override fun onChanged(overflowDataState: OverflowDataState?) {
         when(overflowDataState) {
             is Loading -> overflowView.showLoading()

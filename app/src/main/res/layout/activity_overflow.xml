@@ -21,11 +21,15 @@
 
     </android.support.design.widget.AppBarLayout>
 
-    <FrameLayout
-        android:id="@+id/main_frame"
+    <ViewSwitcher
+        android:id="@+id/view_switcher"
         android:gravity = "center"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
+        android:layout_height="match_parent">
+
+        <include layout="@layout/layout_loading_view"/>
+
+    </ViewSwitcher>
 
 
 

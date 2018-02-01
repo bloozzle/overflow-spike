@@ -59,7 +59,7 @@ class OverflowActivity : AppCompatActivity() {
         val overflowViewModelFactory = OverflowViewModelFactory(OverflowParameters( "watching", OverflowType.USER))
         val overflowViewModel = ViewModelProviders.of(this, overflowViewModelFactory).get(OverflowViewModel::class.java);
 
-        val overflowController = OverflowController(overflowViewModel, object: Router{
+        val router = object : Router {
             override fun navigateToDetailsPage(id: String, title: String) {
                 val intent = Intent(this@OverflowActivity, DetailsPageActivity::class.java)
                 intent.putExtra("id", id)
@@ -67,7 +67,8 @@ class OverflowActivity : AppCompatActivity() {
                 startActivity(intent)
             }
 
-        })
+        }
+        val overflowController = OverflowController(overflowViewModel, router)
 
 
         overflowViewModel.overflowDataState.observe(this, overflowPresenter)

@@ -9,7 +9,7 @@ import android.support.v7.widget.RecyclerView
 import android.view.*
 import kotlinx.android.synthetic.main.activity_overflow.*
 import kotlinx.android.synthetic.main.layout_list_view.*
-import kotlinx.android.synthetic.main.layout_overflow_list_item.view.*
+import kotlinx.android.synthetic.main.layout_list_item.view.*
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
 
@@ -109,7 +109,7 @@ class OverflowListAdapter(val items : List<OverflowUIItem>, val listener : (Over
     }
 
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder  = ViewHolder(parent.inflate(R.layout.layout_overflow_list_item))
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder  = ViewHolder(parent.inflate(R.layout.layout_list_item))
 
     override fun getItemCount(): Int = items.size
 

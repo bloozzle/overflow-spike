@@ -23,39 +23,7 @@ class OverflowActivity : AppCompatActivity() {
         setContentView(R.layout.activity_overflow)
         setSupportActionBar(toolbar)
 
-        val overflowView = object: OverflowView {
-            private var viewListener: OverflowViewListener? = null
 
-            override fun addViewListener(overflowViewListener: OverflowViewListener) {
-                viewListener = overflowViewListener
-            }
-
-            override fun showLoading() {
-                view_switcher.showPrevious()
-            }
-
-            override fun showList(items: List<OverflowUIItem>) {
-                val view = layoutInflater.inflate(R.layout.layout_list_view, null)
-
-
-                view_switcher.addView(view)
-                recycler_view.layoutManager = GridLayoutManager(this@OverflowActivity, 2)
-                recycler_view.adapter = OverflowListAdapter(items) {
-                    viewListener?.itemSelected(items.indexOf(it))
-                }
-                view_switcher.showNext()
-            }
-
-            override fun showError(message: String) {
-                val view =  layoutInflater.inflate(R.layout.layout_error_view, null )
-                view_switcher.addView(view)
-                view_switcher.showNext()
-            }
-
-        }
-        val overflowPresenter = OverflowPresenter( overflowView)
-        val overflowViewModelFactory = OverflowViewModelFactory(OverflowParameters( "watching", OverflowType.USER))
-        val overflowViewModel = ViewModelProviders.of(this, overflowViewModelFactory).get(OverflowViewModel::class.java);
 
         val router = object : DetailsPageRouter {
 
@@ -66,15 +34,35 @@ class OverflowActivity : AppCompatActivity() {
             }
 
         }
-        val overflowController = OverflowController(overflowViewModel, router)
+        val overflowViewModelFactory = OverflowViewModelFactory(OverflowParameters( "watching", OverflowType.USER), router)
+        val overflowViewModel = ViewModelProviders.of(this, overflowViewModelFactory).get(OverflowViewModel::class.java);
+        overflowViewModel.overflowViewState.observe(this, object : Observer<OverflowViewState> {
+//          override fun showLoading() {
+//            view_switcher.showPrevious()
+//        }
+//
+//                override fun showList(items: List<OverflowUIItem>) {
+//            val view = layoutInflater.inflate(R.layout.layout_list_view, null)
+//
+//
+//            view_switcher.addView(view)
+//            recycler_view.layoutManager = GridLayoutManager(this@OverflowActivity, 2)
+//            recycler_view.adapter = OverflowListAdapter(items) {
+//                viewListener?.itemSelected(items.indexOf(it))
+//            }
+//            view_switcher.showNext()
+//        }
+//
+//                override fun showError(message: String) {
+//            val view =  layoutInflater.inflate(R.layout.layout_error_view, null )
+//            view_switcher.addView(view)
+//            view_switcher.showNext()
+//        }
+        })
 
 
-        overflowViewModel.overflowDataState.observe(this, overflowPresenter)
-        overflowViewModel.overflowDataState.observe(this, overflowController)
+        overflowViewModel
 
-        overflowView.addViewListener(overflowController)
-
-        overflowController.loadOverflowItems()
 
     }
 
@@ -126,13 +114,13 @@ private fun ViewGroup.inflate(layoutResource: Int): View {
     return LayoutInflater.from(context).inflate(layoutResource, this, false)
 }
 
-class OverflowController(val viewModel: OverflowViewModel, val router : DetailsPageRouter ) : Observer<OverflowDataState>, OverflowViewListener {
+class OverflowController(val dataInteractor: DataInteractor, val viewModel: OverflowModel, val router : DetailsPageRouter ) : Observer<OverflowViewState>, OverflowViewListener {
 
     private lateinit var overflowItems: List<OverflowItem>
 
-    override fun onChanged(overflowDataState: OverflowDataState?) {
-        when(overflowDataState) {
-            is Success -> overflowItems = overflowDataState.items
+    override fun onChanged(overflowViewState: OverflowViewState?) {
+        when(overflowViewState) {
+            is Success -> overflowItems = overflowViewState.items
 
 
         }
@@ -144,22 +132,41 @@ class OverflowController(val viewModel: OverflowViewModel, val router : DetailsP
     }
 
     override fun itemSelected(position: Int) {
+       //TODO it might be better to query the model rather than observe changes?, e.g   viewModel.getItemAt(position)
         val overflowItem = overflowItems.get(position)
         router.navigate(overflowItem.id )
     }
 
 }
 
-class OverflowViewModelFactory(val overflowParameters: OverflowParameters) : ViewModelProvider.Factory {
+class OverflowViewModelFactory(val overflowParameters: OverflowParameters, val router : DetailsPageRouter) : ViewModelProvider.Factory {
 
-    override fun <T : ViewModel?> create(modelClass: Class<T>): T {
+    override fun <T: ViewModel> create(modelClass: Class<T>): T {
+        return when {
+            modelClass.isAssignableFrom(OverflowViewModel::class.java) -> create()
+            else -> throw IllegalArgumentException("Unknown model class")
+        } as T
+    }
 
-      if(overflowParameters.id == "watching" && overflowParameters.overflowType == OverflowType.USER ){
-           if (modelClass.isAssignableFrom(OverflowViewModel::class.java)) {
-               return OverflowViewModel(WatchingRepository() ) as T
-           }
-       }
-        throw IllegalArgumentException("Unknown ViewModel class");
+    fun  create(): OverflowViewModel {
+        val presenter = OverflowPresenter()
+        val model = OverflowModel(presenter)
+
+        val repository = WatchingRepository()
+//        when(overflowParameters.id == "watching" && overflowParameters.overflowType == OverflowType.USER ){
+//
+//            repository = WatchingRepository()
+//
+//        }
+
+
+        val dataInteractor = DataInteractor(repository, model)
+        val controller = OverflowController(dataInteractor, model, router)
+
+        val viewModel = OverflowViewModel(controller)
+        presenter.addOverflowView(viewModel)
+
+
 
     }
 
@@ -192,16 +199,20 @@ enum class OverflowType {
 
 }
 
-class OverflowPresenter(val overflowView: OverflowView) : Observer<OverflowDataState> {
+class OverflowPresenter() : OverflowModelListener {
 
+    private var view: OverflowView? = null
 
-    override fun onChanged(overflowDataState: OverflowDataState?) {
-        when(overflowDataState) {
-            is Loading -> overflowView.showLoading()
-            is Success -> overflowView.showList(overflowDataState.items.transformToUIItems())
-            is Error -> overflowView.showError(overflowDataState.message)
+    fun addOverflowView(overflowView: OverflowView) {
+        view = overflowView
+    }
 
-        }
+    override fun onDataLoaded(data: List<OverflowItem>) {
+        view?.showList(data.transformToUIItems())
+    }
+
+    override fun onError(message: String) {
+        view?.showError(message)
     }
 
 }
@@ -220,7 +231,6 @@ private fun OverflowItem.transformToOverflowUiItem(): OverflowUIItem {
 }
 interface OverflowView {
     fun addViewListener( overflowViewListener : OverflowViewListener)
-    fun showLoading()
     fun showList(items: List<OverflowUIItem>)
     fun showError(message: String)
 
@@ -233,27 +243,70 @@ interface OverflowViewListener {
 
 }
 
-class OverflowViewModel(val watchingRepository: WatchingRepository) : ViewModel() {
+class OverflowViewModel(val overflowController : OverflowController) : OverflowView, ViewModel() {
+
+    val overflowViewState =  MutableLiveData<OverflowViewState>()
+
+    override fun addViewListener(overflowViewListener: OverflowViewListener) {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun showList(items: List<OverflowUIItem>) {
+        overflowViewState.value = Success(items)
+    }
+
+    override fun showError(message: String) {
+        overflowViewState.value = Error(message)
+    }
 
 
 
-    val overflowDataState =  MutableLiveData<OverflowDataState>()
-
-
-    fun getOverflowItems() : LiveData<OverflowDataState> {
-        overflowDataState.value = Loading()
+    fun onReady() : LiveData<OverflowViewState> {
+        overflowViewState.value = Loading()
         launch {
+            overflowController.loadOverflowItems()
+        }
+        return overflowViewState
+
+    }
+}
+
+class OverflowModel(val modelListener: OverflowModelListener) : Output<List<OverflowItem>> {
+    override fun onSuccess(result: List<OverflowItem>) {
+
+        modelListener.onDataLoaded(result)
+    }
+
+    override fun onFailure(message: String) {
+        modelListener.onError(message)
+    }
+
+}
+
+interface OverflowModelListener {
+    fun onDataLoaded(data: List<OverflowItem>)
+    fun onError(message: String)
+
+}
+
+class DataInteractor(val watchingRepository: WatchingRepository, val output : Output<List<OverflowItem>>) {
+
+
+    fun fetch() {
+        launch() {
             delay(10000L)
             val watchingResponse = watchingRepository.getOverflowItems()
             when(watchingResponse) {
-                is WatchingSuccess -> overflowDataState.postValue(Success(watchingResponse.items.transformToOverflowModel()))
-                is WatchingError -> overflowDataState.postValue(Error(watchingResponse.message))
+                is WatchingSuccess -> output.onSuccess(watchingResponse.items.transformToOverflowModel())
+                is WatchingError -> output.onFailure(watchingResponse.message)
             }
-        }
-        return overflowDataState
-
     }
+}
+}
 
+interface Output<in T> {
+    fun onSuccess(result: T)
+    fun onFailure(message: String)
 }
 
 private fun List<WatchingItem>.transformToOverflowModel(): List<OverflowItem> {
@@ -269,11 +322,11 @@ private fun WatchingItem.transformToOverflowItem(): OverflowItem {
 }
 
 data class OverflowItem(val id : String, val title: String, val subtitle: String)
-sealed class OverflowDataState
-class Loading : OverflowDataState()
-data class Success(val items : List<OverflowItem>) : OverflowDataState()
+sealed class OverflowViewState
+class Loading : OverflowViewState()
+data class Success(val items : List<OverflowUIItem>) : OverflowViewState()
 
-data class Error(val message : String) : OverflowDataState()
+data class Error(val message : String) : OverflowViewState()
 data class OverflowParameters(val id : String, val overflowType : OverflowType)
 
 data class OverflowUIItem(val heading1 : String, val heading2 : String)

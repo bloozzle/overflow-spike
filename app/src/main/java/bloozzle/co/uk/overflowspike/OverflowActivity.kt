@@ -61,7 +61,7 @@ class OverflowActivity : AppCompatActivity() {
         })
 
 
-        overflowViewModel
+        overflowViewModel.onReady()
 
 
     }

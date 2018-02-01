@@ -14,36 +14,9 @@ import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
 
 
-class OverflowActivity : AppCompatActivity(), OverflowView {
-
-    private lateinit var viewListener: OverflowViewListener
-
-    override fun addViewListener(overflowViewListener: OverflowViewListener) {
-        viewListener = overflowViewListener
-    }
+class OverflowActivity : AppCompatActivity() {
 
 
-    override fun showLoading() {
-        view_switcher.showPrevious()
-    }
-
-    override fun showList(items: List<OverflowUIItem>) {
-        val view = layoutInflater.inflate(R.layout.layout_list_view, null)
-
-
-        view_switcher.addView(view)
-        recycler_view.layoutManager = GridLayoutManager(this, 2)
-        recycler_view.adapter = OverflowListAdapter(items) {
-            viewListener?.itemSelected(items.indexOf(it))
-        }
-        view_switcher.showNext()
-    }
-
-    override fun showError(message: String) {
-       val view =  layoutInflater.inflate(R.layout.layout_error_view, null )
-        view_switcher.addView(view)
-        view_switcher.showNext()
-    }
 
 
 
@@ -52,8 +25,37 @@ class OverflowActivity : AppCompatActivity(), OverflowView {
         setContentView(R.layout.activity_overflow)
         setSupportActionBar(toolbar)
 
+        val overflowView = object: OverflowView {
+            private lateinit var viewListener: OverflowViewListener
 
-        val overflowPresenter = OverflowPresenter(this )
+            override fun addViewListener(overflowViewListener: OverflowViewListener) {
+                viewListener = overflowViewListener
+            }
+
+            override fun showLoading() {
+                view_switcher.showPrevious()
+            }
+
+            override fun showList(items: List<OverflowUIItem>) {
+                val view = layoutInflater.inflate(R.layout.layout_list_view, null)
+
+
+                view_switcher.addView(view)
+                recycler_view.layoutManager = GridLayoutManager(this@OverflowActivity, 2)
+                recycler_view.adapter = OverflowListAdapter(items) {
+                    viewListener?.itemSelected(items.indexOf(it))
+                }
+                view_switcher.showNext()
+            }
+
+            override fun showError(message: String) {
+                val view =  layoutInflater.inflate(R.layout.layout_error_view, null )
+                view_switcher.addView(view)
+                view_switcher.showNext()
+            }
+
+        }
+        val overflowPresenter = OverflowPresenter( overflowView)
         val overflowViewModelFactory = OverflowViewModelFactory(OverflowParameters( "watching", OverflowType.USER))
         val overflowViewModel = ViewModelProviders.of(this, overflowViewModelFactory).get(OverflowViewModel::class.java);
 
@@ -70,7 +72,7 @@ class OverflowActivity : AppCompatActivity(), OverflowView {
 
         overflowViewModel.overflowDataState.observe(this, overflowPresenter)
         overflowViewModel.overflowDataState.observe(this, overflowController)
-        addViewListener(overflowController)
+        overflowView.addViewListener(overflowController)
 
         overflowController.loadOverflowItems()
 

@@ -21,30 +21,15 @@
 
     </android.support.design.widget.AppBarLayout>
 
-    <TextView
-        android:id="@+id/loading"
+    <FrameLayout
+        android:id="@+id/main_frame"
+        android:gravity = "center"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone"
-        android:gravity="center"
-        android:text="LOADING"
-        tools:visibility="visible"/>
+        android:layout_height="match_parent"/>
 
-    <TextView
-        android:id="@+id/list"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center"
-        android:text="LIST"
-        android:visibility="gone"/>
 
-    <TextView
-        android:id="@+id/error"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center"
-        android:text="ERROR"
-        android:visibility="gone"/>
+
+
 
 
 </LinearLayout>

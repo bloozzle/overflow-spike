@@ -15,18 +15,18 @@ import kotlinx.coroutines.experimental.launch
 class OverflowActivity : AppCompatActivity(), OverflowView {
 
     override fun showLoading() {
-        loading.visibility = View.VISIBLE
+       val view = layoutInflater.inflate(R.layout.layout_loading_view, null)
+        main_frame.addView(view)
     }
 
     override fun showList(items: List<OverflowUIItem>) {
-        loading.visibility = View.GONE
-        list.visibility = View.VISIBLE
+       val view = layoutInflater.inflate(R.layout.layout_list_view, null)
+        main_frame.addView(view)
     }
 
     override fun showError(message: String) {
-        loading.visibility = View.GONE
-        list.visibility = View.GONE
-        error.visibility = View.VISIBLE
+       val view =  layoutInflater.inflate(R.layout.layout_error_view, null )
+        main_frame.addView(view)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
